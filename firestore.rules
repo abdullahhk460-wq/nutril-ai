@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Phase 4: Entity Validators
+    function isValidUser(data) {
+      return data.keys().hasAll(['fullName', 'country', 'dailyBudget', 'healthGoal'])
+        && data.fullName is string && data.fullName.size() <= 100
+        && data.country is string && data.country.size() <= 50
+        && data.dailyBudget is number && data.dailyBudget >= 0
+        && data.healthGoal is string && data.healthGoal.size() <= 100;
+    }
+
+    function isValidMeal(data) {
+      return data.keys().hasAll(['userId', 'name', 'price', 'category'])
+        && data.userId == request.auth.uid
+        && data.name is string && data.name.size() <= 100
+        && data.price is number && data.price >= 0
+        && data.category in ['breakfast', 'lunch', 'dinner', 'optional'];
+    }
+
+    function isValidExpense(data) {
+      return data.keys().hasAll(['userId', 'amount', 'category', 'date'])
+        && data.userId == request.auth.uid
+        && data.amount is number && data.amount >= 0
+        && data.category in ['breakfast', 'lunch', 'dinner', 'other']
+        && data.date is timestamp;
+    }
+
+    // Match Blocks
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'country', 'province', 'dailyBudget', 'weeklyBudget', 'monthlyBudget', 'healthGoal']);
+
+      match /meals/{mealId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(mealId);
+        allow create: if isOwner(userId) && isValidId(mealId) && isValidMeal(incoming());
+        allow update: if isOwner(userId) && isValidId(mealId) && isValidMeal(incoming())
+          && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'price', 'category', 'quantity']);
+        allow delete: if isOwner(userId) && isValidId(mealId);
+      }
+
+      match /expenses/{expenseId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(expenseId);
+        allow create: if isOwner(userId) && isValidId(expenseId) && isValidExpense(incoming());
+        allow delete: if isOwner(userId) && isValidId(expenseId);
+      }
+
+      match /ai_plans/{planId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(planId);
+        allow create: if isOwner(userId) && isValidId(planId) && incoming().userId == userId;
+      }
+    }
+  }
+}
