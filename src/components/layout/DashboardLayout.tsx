@@ -68,6 +68,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <nav className="flex-1 space-y-1 px-4 mt-4">
           <SidebarItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
+          <SidebarItem to="/notifications" icon={Bell} label="Notifications" />
           <SidebarItem to="/meal-planner" icon={ChefHat} label="Meal Planner" />
           <SidebarItem to="/budget" icon={Wallet} label="Budgeting" />
           <SidebarItem to="/ai-coach" icon={Sparkles} label="AI Life Coach" />
@@ -144,6 +145,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           <nav className="space-y-1" onClick={() => setIsSidebarOpen(false)}>
             <SidebarItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
+            <SidebarItem to="/notifications" icon={Bell} label="Notifications" />
             <SidebarItem to="/meal-planner" icon={ChefHat} label="Meal Planner" />
             <SidebarItem to="/budget" icon={Wallet} label="Budgeting" />
             <SidebarItem to="/ai-coach" icon={Sparkles} label="AI Life Coach" />

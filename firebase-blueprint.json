@@ -53,6 +53,31 @@
         "goal": { "type": "string" }
       },
       "required": ["userId", "plan", "createdAt"]
+    },
+    "ScheduledNotification": {
+      "title": "Scheduled Notification",
+      "description": "Stores a user's scheduled push notification.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "scheduledAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "sent", "failed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "scheduledAt", "status"]
+    },
+    "UserSubscription": {
+      "title": "Push Subscription",
+      "description": "Stores browser push subscription for a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "subscription": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "subscription"]
     }
   },
   "firestore": {
@@ -71,6 +96,14 @@
     "/users/{userId}/ai_plans/{planId}": {
       "schema": "AIPlan",
       "description": "History of AI suggested plans."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": "ScheduledNotification",
+      "description": "User's notification schedule and history."
+    },
+    "/subscriptions/{subId}": {
+      "schema": "UserSubscription",
+      "description": "User browser push tokens."
     }
   }
 }

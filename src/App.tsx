@@ -10,6 +10,7 @@ import DashboardPage from './pages/Dashboard/DashboardPage';
 import AICoachPage from './pages/Dashboard/AICoachPage';
 import MealPlannerPage from './pages/Dashboard/MealPlannerPage';
 import BudgetPage from './pages/Dashboard/BudgetPage';
+import NotificationsPage from './pages/Dashboard/NotificationsPage';
 
 // Placeholders for remaining modules
 const Progress = () => <DashboardLayout><div className="p-8"><h1 className="text-2xl font-bold">Progress</h1></div></DashboardLayout>;
@@ -54,6 +55,14 @@ export default function App() {
             element={
               <DashboardLayout>
                 <BudgetPage />
+              </DashboardLayout>
+            } 
+          />
+          <Route 
+            path="/notifications" 
+            element={
+              <DashboardLayout>
+                <NotificationsPage />
               </DashboardLayout>
             } 
           />

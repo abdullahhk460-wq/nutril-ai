@@ -52,12 +52,30 @@ service cloud.firestore {
         && data.date is timestamp;
     }
 
+    function isValidNotification(data) {
+      return data.keys().hasAll(['userId', 'title', 'message', 'scheduledAt', 'status', 'createdAt'])
+        && data.userId == request.auth.uid
+        && data.title is string && data.title.size() <= 128
+        && data.message is string && data.message.size() <= 512
+        && data.status in ['pending', 'sent', 'failed']
+        && data.scheduledAt is string
+        && data.createdAt is string;
+    }
+
     // Match Blocks
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow create: if isOwner(userId) && isValidUser(incoming());
       allow update: if isOwner(userId) && isValidUser(incoming())
         && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'country', 'province', 'dailyBudget', 'weeklyBudget', 'monthlyBudget', 'healthGoal']);
+
+      match /notifications/{notifId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(notifId);
+        allow create: if isOwner(userId) && isValidId(notifId) && isValidNotification(incoming());
+        allow delete: if isOwner(userId) && isValidId(notifId);
+        allow update: if isOwner(userId) && isValidId(notifId) && isValidNotification(incoming());
+      }
 
       match /meals/{mealId} {
         allow list: if isOwner(userId);
