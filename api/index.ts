@@ -13,9 +13,12 @@ const app = express();
 app.use(express.json());
 
 // Initialize Firebase Admin synchronously if possible, or via a helper
-const root = process.cwd();
+const root = path.join(__dirname, '..');
 const firebaseConfigPath = path.join(root, 'firebase-applet-config.json');
 let db: any = null;
+
+console.log(`[Config] Root directory: ${root}`);
+console.log(`[Config] Checking for Firebase config at: ${firebaseConfigPath}`);
 
 if (fs.existsSync(firebaseConfigPath)) {
   const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
@@ -119,19 +122,21 @@ app.post("/api/notifications/test", async (req, res) => {
 
 // For Vercel, we need to handle static files differently or ensure the route is right
 if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
-  const distPath = path.join(process.cwd(), "dist");
+  const distPath = path.join(__dirname, "..", "dist");
+  console.log(`[Static] Serving files from: ${distPath}`);
   app.use(express.static(distPath));
   
-  // Important: This catch-all must be the LAST route
   app.get("*", (req, res, next) => {
-    // If it's an API route or static file that wasn't found, don't serve index.html
     if (req.path.startsWith('/api/')) return next();
     
     const indexPath = path.join(distPath, "index.html");
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
-      res.status(404).send('Not Found');
+      console.error(`[Static] HTML fallback failed. File not found at: ${indexPath}`);
+      // Fallback for Vercel: If dist not found, it might be served as static by Vercel directly
+      // but if we are in this catch-all, something is wrong.
+      res.status(404).send('Resource Not Found');
     }
   });
 } else {
@@ -145,6 +150,62 @@ if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
 }
 
 const PORT = Number(process.env.PORT) || 3000;
+
+// Cron-friendly endpoint to trigger notification checks
+app.get("/api/notifications/process", async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'Database not initialized' });
+  
+  // Security check: simple token or just let it be if it's protected by other means
+  // In a real app, you'd check a secret header from Vercel Crons
+  
+  try {
+    const now = new Date();
+    const snapshot = await db.collectionGroup('notifications')
+      .where('status', '==', 'pending')
+      .get();
+
+    if (snapshot.empty) return res.json({ success: true, processed: 0 });
+
+    let processedCount = 0;
+    for (const doc of snapshot.docs) {
+      const notif = doc.data();
+      const scheduledTime = new Date(notif.scheduledAt);
+      if (scheduledTime > now) continue;
+
+      const userId = notif.userId;
+      const subSnapshot = await db.collection('subscriptions')
+        .where('userId', '==', userId)
+        .get();
+
+      if (!subSnapshot.empty) {
+        const subData = subSnapshot.docs[0].data();
+        try {
+          const payload = JSON.stringify({
+            title: notif.title,
+            message: notif.message,
+            url: '/dashboard/notifications'
+          });
+          await webpush.sendNotification(
+            subData.subscription,
+            payload,
+            { urgency: 'high' }
+          );
+          await doc.ref.update({ status: 'sent', sentAt: now.toISOString() });
+          processedCount++;
+        } catch (err: any) {
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            await subSnapshot.docs[0].ref.delete();
+          }
+          await doc.ref.update({ status: 'failed' });
+        }
+      }
+    }
+    res.json({ success: true, processed: processedCount });
+  } catch (err: any) {
+    console.error('Cron check failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Export the app for Vercel
 // Only call listen if we are NOT on Vercel
