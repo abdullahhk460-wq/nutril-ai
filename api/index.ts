@@ -13,7 +13,7 @@ const app = express();
 app.use(express.json());
 
 // Initialize Firebase Admin synchronously if possible, or via a helper
-const root = path.join(__dirname, '..');
+const root = process.cwd();
 const firebaseConfigPath = path.join(root, 'firebase-applet-config.json');
 let db: any = null;
 
@@ -120,33 +120,38 @@ app.post("/api/notifications/test", async (req, res) => {
   }
 });
 
-// For Vercel, we need to handle static files differently or ensure the route is right
-if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
-  const distPath = path.join(__dirname, "..", "dist");
-  console.log(`[Static] Serving files from: ${distPath}`);
-  app.use(express.static(distPath));
-  
-  app.get("*", (req, res, next) => {
-    if (req.path.startsWith('/api/')) return next();
+// For Vercel, static files are handled by the routes in vercel.json.
+// On other platforms (AI Studio / local), we serve them manually.
+if (!process.env.VERCEL) {
+  if (process.env.NODE_ENV === "production") {
+    const distPath = path.join(__dirname, "..", "dist");
+    console.log(`[Server] Serving static files from: ${distPath}`);
+    app.use(express.static(distPath));
     
-    const indexPath = path.join(distPath, "index.html");
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      console.error(`[Static] HTML fallback failed. File not found at: ${indexPath}`);
-      // Fallback for Vercel: If dist not found, it might be served as static by Vercel directly
-      // but if we are in this catch-all, something is wrong.
-      res.status(404).send('Resource Not Found');
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith('/api/')) return next();
+      
+      const indexPath = path.join(distPath, "index.html");
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send('Resource Not Found');
+      }
+    });
+  } else {
+    // Development mode (AI Studio / Local)
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+      console.log("[Server] Vite middleware integrated");
+    } catch (e) {
+      console.error("[Server] Failed to load Vite:", e);
     }
-  });
-} else {
-  // Development mode with Vite
-  const { createServer: createViteServer } = await import("vite");
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: "spa",
-  });
-  app.use(vite.middlewares);
+  }
 }
 
 const PORT = Number(process.env.PORT) || 3000;
